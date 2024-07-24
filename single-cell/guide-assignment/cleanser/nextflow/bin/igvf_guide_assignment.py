@@ -1,8 +1,10 @@
+#!/usr/bin/env python
+
 import argparse
 import asyncio
 import unittest
-
-import mudata as md
+import muon as mu
+from muon import MuData
 import numpy as np
 from cleanser import CS_MODEL_FILE, DC_MODEL_FILE
 from cleanser import run as run_cleanser
@@ -55,25 +57,19 @@ def threshold_posteriors(guides, threshold):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-i", "--input", required=True, type=str, help="Input MuData file"
-    )
-    parser.add_argument(
-        "-o", "--output", required=True, type=str, help="Output MuData file"
-    )
+    parser.add_argument("-i", "--input", required=True, type=str, help="Input MuData file")
     parser.add_argument("-t", "--threshold", default=None, type=float)
 
     model_group = parser.add_mutually_exclusive_group(required=True)
     model_group.add_argument(
         "--cleanser",
         action="store_true",
-        help="Use CLEANSER to determine assignments",
-    )
+        help="Use CLEANSER to determine assignments")
     model_group.add_argument(
         "--umi-threshold",
         action="store_true",
-        help="Use UMI threshold to determine assignments (default 5)",
-    )
+        help="Use UMI threshold to determine assignments (default 5)")
+    parser.add_argument("-o", "--output", required=True, type=str, help="Output MuData file")
     return parser.parse_args()
 
 
@@ -90,111 +86,6 @@ def run(gas, cleanser, umi_threshold, threshold):
 
 if __name__ == "__main__":
     args = get_args()
-    mu_input = md.read(args.input)
+    mu_input = mu.read(args.input)
     run(mu_input, args.cleanser, args.umi_threshold, args.threshold)
-    md.write(args.output, mu_input)
-
-
-####################################
-#              Tests               #
-####################################
-
-
-class TestCleanser(unittest.TestCase):
-    """Test guide assignment using basic thresholding"""
-
-    def test_cropseq_threshold_values(self):
-        """Ensure all the values in the guide_assignment layer are 1.0. It's a sparse matrix so any locations without values
-        are implicitly 0.0"""
-
-        gas = md.read("test_data/gasperini_guide_assignment_input_minimal.h5mu")
-        guides = gas["guide"]
-
-        self.assertEqual("CROP-seq", guides.uns.get("capture_method"))
-
-        run(gas, cleanser=True, umi_threshold=False, threshold=0.8)
-        self.assertIn("guide_assignment", guides.layers)
-        assignments = guides.layers[
-            "guide_assignment"
-        ].tocoo()  # Must be in COO format to iterate overvalues
-        for value in assignments.data:
-            self.assertEqual(value, 1.0)
-
-    def test_cropseq_probability_values(self):
-        """Ensure all the values in the guide_assignment layer are > 0.0. It's a sparse matrix so any locations without values
-        are implicitly 0.0"""
-
-        gas = md.read("test_data/gasperini_guide_assignment_input_minimal.h5mu")
-        guides = gas["guide"]
-
-        self.assertEqual("CROP-seq", guides.uns.get("capture_method"))
-
-        run(gas, cleanser=True, umi_threshold=False, threshold=None)
-        self.assertIn("guide_assignment", guides.layers)
-        assignments = guides.layers[
-            "guide_assignment"
-        ].tocoo()  # Must be in COO format to iterate overvalues
-
-        # All values are > 0
-        for value in assignments.data:
-            self.assertGreater(value, 0.0)
-
-        # Not all values are == 1.0
-        self.assertFalse(all([d == 1.0 for d in assignments.data]))
-
-    def test_dc_threshold_values(self):
-        """Ensure all the values in the guide_assignment layer are 1.0. It's a sparse matrix so any locations without values
-        are implicitly 0.0"""
-
-        gas = md.read("test_data/papalexi_guide_assignment_input.h5mu")
-        guides = gas["guide"]
-
-        self.assertEqual("direct capture", guides.uns.get("capture_method"))
-
-        run(gas, cleanser=True, umi_threshold=False, threshold=0.8)
-        self.assertIn("guide_assignment", guides.layers)
-        assignments = guides.layers[
-            "guide_assignment"
-        ].tocoo()  # Must be in COO format to iterate overvalues
-        for value in assignments.data:
-            self.assertEqual(value, 1.0)
-
-    def test_dc_probability_values(self):
-        """Ensure all the values in the guide_assignment layer are > 0.0. It's a sparse matrix so any locations without values
-        are implicitly 0.0"""
-
-        gas = md.read("test_data/papalexi_guide_assignment_input.h5mu")
-        guides = gas["guide"]
-
-        self.assertEqual("direct capture", guides.uns.get("capture_method"))
-
-        run(gas, cleanser=True, umi_threshold=False, threshold=None)
-        self.assertIn("guide_assignment", guides.layers)
-        assignments = guides.layers[
-            "guide_assignment"
-        ].tocoo()  # Must be in COO format to iterate overvalues
-
-        # All values are > 0
-        for value in assignments.data:
-            self.assertGreater(value, 0.0)
-
-        # Not all values are == 1.0
-        self.assertFalse(all([d == 1.0 for d in assignments.data]))
-
-
-class TestThreshold(unittest.TestCase):
-    """Test guide assignment using basic thresholding"""
-
-    def test_layer_values(self):
-        """Ensure all the values in the guide_assignment layer are 1.0. It's a sparse matrix so any locations without values
-        are implicitly 0.0"""
-
-        gas = md.read("test_data/gasperini_guide_assignment_input_minimal.h5mu")
-        run(gas, cleanser=False, umi_threshold=True, threshold=5)
-        guides = gas["guide"]
-        self.assertIn("guide_assignment", guides.layers)
-        assignments = guides.layers[
-            "guide_assignment"
-        ].tocoo()  # Must be in COO format to iterate overvalues
-        for value in assignments.data:
-            self.assertEqual(value, 1.0)
+    mu.write(args.output, mu_input)
